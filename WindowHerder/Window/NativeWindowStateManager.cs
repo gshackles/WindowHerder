@@ -32,6 +32,9 @@ namespace WindowHerder.Window
         public static extern bool IsWindowVisible(IntPtr hWnd);
 
         [DllImport("user32.dll")]
+        static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
         static extern bool SetWindowPlacement(IntPtr hWnd, [In] ref WINDOWPLACEMENT lpwndpl);
 
         [DllImport("user32.dll")]
@@ -115,15 +118,35 @@ namespace WindowHerder.Window
             public IntPtr WindowHandle { get; set; }
 
             public WINDOWPLACEMENT WindowPlacement { get; set; }
+
+            public override bool Equals(object obj)
+            {
+                WindowState right = obj as WindowState;
+
+                return right != null && WindowHandle == right.WindowHandle;
+            }
+
+            public override int GetHashCode()
+            {
+                return WindowHandle.ToInt32();
+            }
         }
 
         private IList<WindowState> _windows;
 
         public bool StoreVisibleWindowStates()
         {
-            var excludedWindowTitles = new List<string> { "Start" };
+            bool success = false;
 
-            _windows = new List<WindowState>();
+            _windows = getCurrentTopLevelWindows(ref success);
+
+            return success;
+        }
+
+        private IList<WindowState> getCurrentTopLevelWindows(ref bool success)
+        {
+            var excludedWindowTitles = new List<string> { "Start" };
+            var windows = new List<WindowState>();
 
             EnumDelegate enumFunc = new EnumDelegate((hWnd, lParam) =>
             {
@@ -137,26 +160,41 @@ namespace WindowHerder.Window
                         WindowPlacement = getWindowPlacement(hWnd)
                     };
 
-                    _windows.Add(windowState);
+                    windows.Add(windowState);
                 }
 
                 return true;
             });
 
-            return EnumDesktopWindows(IntPtr.Zero, enumFunc, IntPtr.Zero);
+            success = EnumDesktopWindows(IntPtr.Zero, enumFunc, IntPtr.Zero);
+
+            return windows;
         }
 
         public bool RestoreStoredWindowStates()
         {
-            if (_windows == null || _windows.Count == 0)
+            bool getWindowSuccess = false;
+            IList<WindowState> currentTopLevelWindows = getCurrentTopLevelWindows(ref getWindowSuccess);
+
+            if (_windows == null || _windows.Count == 0 || !getWindowSuccess)
             {
                 return false;
             }
 
+            // get a list of windows to restore, ordered as follows:
+            //      1) windows in the saved state that still exist
+            //      2) new windows opened since the state was saved
+            IEnumerable<WindowState> orderedWindows =
+                _windows
+                    .Where(window => currentTopLevelWindows.Contains(window))
+                    .Union(
+                        currentTopLevelWindows.Where(window => !_windows.Contains(window))
+                    );
+
             IntPtr windowStructureHandle = BeginDeferWindowPos(_windows.Count());
             IntPtr lastWindowHandle = IntPtr.Zero;
 
-            foreach (var windowState in _windows)
+            foreach (var windowState in orderedWindows)
             {
                 WINDOWPLACEMENT placement = windowState.WindowPlacement;
 
@@ -166,7 +204,12 @@ namespace WindowHerder.Window
                 lastWindowHandle = windowState.WindowHandle;
             }
 
-            return EndDeferWindowPos(windowStructureHandle);
+            bool success = EndDeferWindowPos(windowStructureHandle);
+
+            // focus/activate the top window
+            SetForegroundWindow(orderedWindows.First().WindowHandle);
+
+            return success;
         }
     }
 }
