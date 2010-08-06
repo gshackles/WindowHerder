@@ -2,7 +2,7 @@
 {
     public interface IHotKeyRegistrar
     {
-        void RegisterHotKey(HotKeyDefinition definition);
+        void RegisterHotKey(HotKeyDefinition definition, HotKeyPressedCallback callback);
         void UnregisterAllHotKeys();
     }
 }

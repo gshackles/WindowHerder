@@ -15,7 +15,5 @@ namespace WindowHerder.Keyboard
         public bool IncludeWindowsKey { get; set; }
 
         public Keys KeyCode { get; set; }
-
-        public HotKeyPressedCallback Callback { get; set; }
     }
 }

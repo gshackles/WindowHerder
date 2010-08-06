@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Forms;
 using WindowHerder.Keyboard;
+using WindowHerder.Options;
 using WindowHerder.Window;
 
 namespace WindowHerder
@@ -12,7 +13,7 @@ namespace WindowHerder
         private NotifyIcon _notifyIcon;
         private IWindowStateManager _windowStateManager;
         private IHotKeyRegistrar _hotkeyRegistrar;
-        private const int _balloonTipLifespan = 500;
+        private BaseOptionsManager _optionsProvider;
         
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -21,11 +22,12 @@ namespace WindowHerder
             // can eventually set these through DI if we want
             _windowStateManager = new NativeWindowStateManager();
             _hotkeyRegistrar = new ManagedHotKeyRegistrar();
+            _optionsProvider = new RegistryOptionsManager();
 
             registerHotKeys();
             setupTrayIcon();
 
-            _notifyIcon.ShowBalloonTip(_balloonTipLifespan, WindowHerder.Resources.Strings.ApplicationTitle, WindowHerder.Resources.Strings.StartupBalloonMessage, ToolTipIcon.Info);
+            showBalloonTip(WindowHerder.Resources.Strings.StartupBalloonMessage, ToolTipIcon.Info, _optionsProvider.Options.ShowStartupMessage);
         }
 
         protected override void OnExit(ExitEventArgs e)
@@ -34,6 +36,15 @@ namespace WindowHerder
 
             _notifyIcon.Dispose();
             _hotkeyRegistrar.UnregisterAllHotKeys();
+            _optionsProvider.SaveOptions();
+        }
+
+        private void showBalloonTip(string message, ToolTipIcon icon, bool tipEnabled = true)
+        {
+            if (tipEnabled) 
+            {
+                _notifyIcon.ShowBalloonTip(_optionsProvider.Options.BalloonTipLifespan, WindowHerder.Resources.Strings.ApplicationTitle, message, icon);
+            }
         }
 
         private void setupTrayIcon()
@@ -44,7 +55,7 @@ namespace WindowHerder
                 Visible = true,
                 ContextMenu = new ContextMenu(new MenuItem[]
                 {
-                    new MenuItem(WindowHerder.Resources.Strings.SystemTrayMenu_TakeSnapshot, new EventHandler((s, ev) => refreshWindowList())),
+                    new MenuItem(WindowHerder.Resources.Strings.SystemTrayMenu_TakeSnapshot, new EventHandler((s, ev) => saveWindowList())),
                     new MenuItem(WindowHerder.Resources.Strings.SystemTrayMenu_RestoreSnapshot, new EventHandler((s, ev) => restoreWindowList())),
                     new MenuItem("-"), 
                     new MenuItem(WindowHerder.Resources.Strings.SystemTrayMenu_Exit, new EventHandler((s, ev) => this.Shutdown()))
@@ -59,45 +70,29 @@ namespace WindowHerder
 
         private void registerHotKeys() 
         {
-            _hotkeyRegistrar.RegisterHotKey(new HotKeyDefinition
-            {
-                IncludeAltKey = true,
-                IncludeCtrlKey = false,
-                IncludeShiftKey = false,
-                IncludeWindowsKey = false,
-                KeyCode = Keys.F1,
-                Callback = refreshWindowList
-            });
-
-            _hotkeyRegistrar.RegisterHotKey(new HotKeyDefinition
-            {
-                IncludeAltKey = true,
-                IncludeCtrlKey = false,
-                IncludeShiftKey = false,
-                IncludeWindowsKey = false,
-                KeyCode = Keys.F2,
-                Callback = restoreWindowList
-            });
+            _hotkeyRegistrar.RegisterHotKey(_optionsProvider.Options.SaveStateHotKey, saveWindowList);
+            _hotkeyRegistrar.RegisterHotKey(_optionsProvider.Options.RestoreStateHotKey, restoreWindowList);
         }
 
-        private void refreshWindowList()
+        private void saveWindowList()
         {
             bool success = _windowStateManager.StoreVisibleWindowStates();
-            string message = success
-                                ? WindowHerder.Resources.Strings.SnapshotTaken_SuccessBalloonMessage
-                                : WindowHerder.Resources.Strings.SnapshotTaken_ErrorBalloonMessage;
 
-            _notifyIcon.ShowBalloonTip(_balloonTipLifespan, WindowHerder.Resources.Strings.ApplicationTitle, message, ToolTipIcon.Info);
+            if (success)
+            {
+                showBalloonTip(WindowHerder.Resources.Strings.SnapshotTaken_SuccessBalloonMessage, ToolTipIcon.Info, _optionsProvider.Options.ShowSavedMessage);
+            }
+            else
+            {
+                showBalloonTip(WindowHerder.Resources.Strings.SnapshotTaken_ErrorBalloonMessage, ToolTipIcon.Error, _optionsProvider.Options.ShowSavedMessage);
+            }
         }
 
         private void restoreWindowList()
         {
             bool success = _windowStateManager.RestoreStoredWindowStates();
 
-            if (success)
-            {
-                _notifyIcon.ShowBalloonTip(_balloonTipLifespan, WindowHerder.Resources.Strings.ApplicationTitle, WindowHerder.Resources.Strings.SnapshotRestored_SuccessBalloonMessage, ToolTipIcon.Info);
-            }
+            showBalloonTip(WindowHerder.Resources.Strings.SnapshotRestored_SuccessBalloonMessage, ToolTipIcon.Info, success && _optionsProvider.Options.ShowRestoredMessage);
         }
     }
 }

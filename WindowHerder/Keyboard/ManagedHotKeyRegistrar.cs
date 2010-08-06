@@ -13,7 +13,7 @@ namespace WindowHerder.Keyboard
             _hotkeys = new List<Hotkey>();
         }
 
-        public void RegisterHotKey(HotKeyDefinition definition)
+        public void RegisterHotKey(HotKeyDefinition definition, HotKeyPressedCallback callback)
         {
             try
             {
@@ -26,7 +26,7 @@ namespace WindowHerder.Keyboard
                     KeyCode = definition.KeyCode
                 };
 
-                hotkey.HotkeyPressed += ((sender, e) => definition.Callback.Invoke());
+                hotkey.HotkeyPressed += ((sender, e) => callback.Invoke());
                 hotkey.Enabled = true;
 
                 _hotkeys.Add(hotkey);

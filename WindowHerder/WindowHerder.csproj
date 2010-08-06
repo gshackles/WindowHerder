@@ -77,6 +77,10 @@
     <Compile Include="Keyboard\HotKeyDefinition.cs" />
     <Compile Include="Keyboard\IHotKeyRegistrar.cs" />
     <Compile Include="Keyboard\ManagedHotKeyRegistrar.cs" />
+    <Compile Include="Options\BaseOptionsManager.cs" />
+    <Compile Include="Options\IOptionsManager.cs" />
+    <Compile Include="Options\RegistryOptionsManager.cs" />
+    <Compile Include="Options\WindowHerderOptions.cs" />
     <Compile Include="Resources\Strings.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
